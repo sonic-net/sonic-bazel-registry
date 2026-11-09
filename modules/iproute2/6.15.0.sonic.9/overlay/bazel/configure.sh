@@ -51,7 +51,6 @@ export CC
 cat >> config.mk <<CONFIG
 
 override CC := $make_cc
-override HOSTCC := $make_cc
 # The upstream default is /usr/include; select the declared Berkeley DB headers.
 override DBM_INCLUDE := $EXT_BUILD_DEPS/include/usr/include
 CPPFLAGS := $make_cppflags

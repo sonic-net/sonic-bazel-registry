@@ -29,9 +29,9 @@ and declared feature libraries. Make installs into a private `DESTDIR`; packagin
 programs, configuration, generated manuals, completions and netem tables.
 Examples and notices come directly from the source, as in Debian's recipe.
 
-Native AMD64 and ARM64 builds are supported. Upstream's netem generators use
-`HOSTCC` and execute during Make, so these jobs do not establish cross-compilation
-support. Bazel caches the configure/Make action as a whole. Data and config
+Bazel builds all four original netem table generators for the execution platform.
+Upstream Make runs them to create the installed distribution files, while the
+selected target toolchain builds the packaged programs. Bazel caches the configure/Make action as a whole. Data and config
 selections use the same debug-preserving configuration as the ELF inputs,
 avoiding a second configured foreign build. Runtime/debug TAR
 assembly and consuming image assembly remain separate cacheable actions.
