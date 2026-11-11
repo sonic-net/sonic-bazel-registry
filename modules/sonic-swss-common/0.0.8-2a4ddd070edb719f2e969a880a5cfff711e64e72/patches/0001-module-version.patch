@@ -1,19 +1,21 @@
-From: Guohan Lu <securely1g@gmail.com>
-Subject: [PATCH] Set the registry version for Common
-
-Register the source reviewed in securely1g/sonic-swss-common#34.
-Use its full source commit in the module version so consumers select
-the exact runtime data packaging. This changes only registry identity;
-the source build and packaging declarations are unchanged.
-
+diff --git a/MODULE.bazel b/MODULE.bazel
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
 @@ -1,7 +1,7 @@
  # Keep bazel_compatibility in sync with sonic-buildimage's .bazelversion.
  module(
      name = "sonic-swss-common",
--    version = "0.0.6",
-+    version = "0.0.7-f7fda40c02b3a8b4bbbff3d17fca3dff83f4cbad",
+-    version = "0.0.8",
++    version = "0.0.9-334389eae54afd1f4f5ee69f89c3a7ad2062ee61",
      bazel_compatibility = [
          ">=8.5.1",
          "<=8.5.1",
+@@ -26,7 +26,7 @@
+ bazel_dep(name = "bazel_skylib", version = "1.9.0")
+ bazel_dep(name = "platforms", version = "1.1.0")
+ bazel_dep(name = "tar.bzl", version = "0.10.5-sonic.1")
+-bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.15")
++bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.16")
+ bazel_dep(name = "libyang", version = "3.12.2.sonic.4")
+ 
+ # Use the owner-exported native shared targets and matching runtime metadata.

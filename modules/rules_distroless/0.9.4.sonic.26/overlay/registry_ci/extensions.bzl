@@ -65,6 +65,15 @@ _LIBPCAP = {
 }
 
 def _registry_ci_impl(module_ctx):
+    # Architecture: all; the same immutable archive carries every kernel ABI.
+    deb_import(
+        name = "registry_ci_linux_headers",
+        package_name = "linux-libc-dev",
+        target_name = "linux-libc-dev",
+        urls = ["https://snapshot.debian.org/archive/debian-security/20260726T121236Z/pool/updates/main/l/linux/linux-libc-dev_6.12.96-1_all.deb"],
+        sha256 = "c514b81492fc01c573ecfc809f9b460023d50e5006848c4caf78997bf1f776a5",
+    )
+
     native_shared_fixture(name = "registry_ci_native_shared")
 
     for architecture, packages in _PROTOBUF.items():
@@ -223,6 +232,11 @@ def _registry_ci_impl(module_ctx):
 
     translate_dependency_set(
         name = "registry_ci_pkgconfig",
+        cc_exports = {
+            "@%s//:cc_exports.json" % util.sanitize(package_key): package_key
+            for package_key, package in metadata_packages.items()
+            if package["name"].endswith("-dev")
+        },
         depset_name = "registry_ci",
         lock_content = json.encode({
             "version": 2,

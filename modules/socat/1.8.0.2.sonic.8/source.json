@@ -4,12 +4,14 @@
   "strip_prefix": "socat-1.8.0.2",
   "overlay": {
     "BUILD.bazel": "sha256-r2fyCrDt8eZh66OYzj4AlITcH458u9LeESR11QU8ca4=",
-    "MODULE.bazel": "sha256-uX+iO/6aZmLi65Yj+IgvpbYXPeQ3LGnFwq1a9ykMzLc=",
-    "README.bazel.md": "sha256-gHjEB7/nvPBAhOvlJSR7r3lEVC5Ez33uNOzX4BrEpwI=",
-    "bazel/enable_readline.patch": "sha256-FgzwOQNXAPHYiQKMVdtAzJN0FBIwPm7WF0w+iDW1rDU=",
-    "bazel/socat.BUILD.bazel": "sha256-MEtR1QFDlDzTxLmOydEc4QtrkfcSL77XZPYBGJi26SA=",
-    "bazel/source.bzl": "sha256-K5VWiHNCFLv+hSJ23PV+eyds5jQUmI5VciC2ITiB5O8=",
-    "socat_package_test.py": "sha256-NFpwIggELVJWcUnubwm5pBIHpZ07Xo2OdrixiUVgE5s=",
-    "runtime_packages.md": "sha256-pcAPU9KpYouH5brGxYGV6zaRxRhCDQwi74BBbjCBbs4="
+    "MODULE.bazel": "sha256-AoCSEdWwq8vOEJ8Nh+NiZDLW3sgyHBFYQHy4h/YTLAs=",
+    "README.bazel.md": "sha256-oYWChTAcvlZz/h/hwpq7ZC179J6a2HqT+XXN4tk/s4Y=",
+    "bazel/0001-enable-readline.patch": "sha256-5glrKB+C18vMa7W8FRXTyEfo5AIDVouydfTxzZf7RaQ=",
+    "bazel/0002-compiler-metadata.patch": "sha256-sv1gwJ2iXCDIjMdvcrcCdt/lUPUpvxQjGkAK5anlRcE=",
+    "bazel/0003-procan-namespace-nul.patch": "sha256-N3LNqgqQSI0+ygpR0HqN3E59DcICFZtgLHh1Vbf7Tcg=",
+    "bazel/socat.BUILD.bazel": "sha256-09JRXXBOByTRvVOs+ur1Lgf2maZVkmvCf7cAnUHjLxE=",
+    "bazel/source.bzl": "sha256-8Qk/8ik/ArbZxfyXadm6eO3bHZQSc+MGYiwXsOElFYs=",
+    "runtime_packages.md": "sha256-pcAPU9KpYouH5brGxYGV6zaRxRhCDQwi74BBbjCBbs4=",
+    "socat_package_test.py": "sha256-uWhzgvHfBrB7KMYLvWA9qax6ZGHxEw6H4HQQFjPGhMQ="
   }
 }

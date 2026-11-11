@@ -29,9 +29,9 @@ and declared feature libraries. Make installs into a private `DESTDIR`; packagin
 programs, configuration, generated manuals, completions and netem tables.
 Examples and notices come directly from the source, as in Debian's recipe.
 
-Native AMD64 and ARM64 builds are supported. Upstream's netem generators use
-`HOSTCC` and execute during Make, so these jobs do not establish cross-compilation
-support. Bazel caches the configure/Make action as a whole. Data and config
+Bazel builds all four original netem table generators for the execution platform.
+Upstream Make runs them to create the installed distribution files, while the
+selected target toolchain builds the packaged programs. Bazel caches the configure/Make action as a whole. Data and config
 selections use the same debug-preserving configuration as the ELF inputs,
 avoiding a second configured foreign build. Runtime/debug TAR
 assembly and consuming image assembly remain separate cacheable actions.
@@ -89,3 +89,30 @@ to the existing Bazel TARs. The shared metadata rule inspects those target
 binaries and declared dependency packages, so version constraints come from
 the built artifacts and Debian tools. There is no handwritten JSON metadata
 file or new DEB producer.
+
+## Reproducible debug paths
+
+The native rule enables upstream `set_file_prefix_map` for the entire execution
+root, including dependency and sysroot headers outside the current source
+directory. A different sandbox location therefore does not enter DWARF paths
+or change build IDs for that reason. The installed-package test rejects
+execution-root paths in every delivered debug file and retains the original
+program, runtime, parser, feature and matching-symbol checks.
+
+## Long dependency flags
+
+The source parent in SONiC buildimage PR #151 supplies 89,512 bytes of ordered
+CPPFLAGS and 43,782 bytes of LDFLAGS. Combining them into `CC` exceeded Linux's
+per-string execution limit before iproute2's configure could start. The owner
+wrapper now writes GCC response files and uses them in both configure
+probes and recursive Make. Its dependency CPPFLAGS goes through `-Wp,@file`
+to the preprocessor; expanding it in the driver would recreate the same limit
+in `COLLECT_GCC_OPTIONS`. Driver/sysroot/hardening and linker options remain
+with the GCC driver, and invalid preprocessor options fail with a diagnostic.
+This is tested with the selected GCC 14 toolchain. Include precedence, library order, hardening flags
+and debug-prefix mappings are retained; no dependency flags are removed.
+
+`@iproute2//:configure_flags_test` uses the native registry CI environment's
+GNU compiler and Make to check large flags, quoted defines, header precedence,
+recursive builds, and unchanged output bytes compared with a short equivalent
+flag set. The original complete installed-package test remains selected.
