@@ -7,6 +7,10 @@ Linux's per-string argument limit. It preserves flag ordering and the generator
 and linker options used by [Syncd VS](https://github.com/securely1g/sonic-buildimage/pull/133)
 and [Gearbox](https://github.com/securely1g/sonic-buildimage/pull/154).
 
+This entry registers the source module's `0.0.1` base version as
+`0.0.1-2cbfdfa1205c0d03003444e5c80f89adb8c3df59`. The published
+`0.0.3-2cbfdfa1205c0d03003444e5c80f89adb8c3df59` entry remains unchanged.
+
 The registry applies one version patch to the source module. Consumers resolve
 the PI `0.1.3.sonic.4` SDK and the shared build-infra `.28` implementation
 through their registry. The candidate uses the same published P4C
