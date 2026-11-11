@@ -1,9 +1,9 @@
 {
-  "url": "https://github.com/securely1g/sonic-fips/archive/d1a2c8f692d4197295269ed445022c3890b0f1a6.tar.gz",
-  "strip_prefix": "sonic-fips-d1a2c8f692d4197295269ed445022c3890b0f1a6",
-  "integrity": "sha256-Gu7IjsOLRUbnCnuQ4OOWY8EoPf1nKNJ/SzTCBvGUV+4=",
+  "url": "https://github.com/securely1g/sonic-fips/archive/18a778db501d455f8a1b6d1e3ef8e17121661177.tar.gz",
+  "strip_prefix": "sonic-fips-18a778db501d455f8a1b6d1e3ef8e17121661177",
+  "integrity": "sha256-vzJY61s9LR7vXQTgw+wtr4G5uiFmJWglig8h8PiNKRs=",
   "patch_strip": 1,
   "patches": {
-    "0001-module-version.patch": "sha256-7vLJ86zbi6+Ofd8KverTFZ9QQNRa4cODKWsQlAdlyEU="
+    "0001-module-version.patch": "sha256-joVp8ufDtfsKKyHd5VY4/5qKXFvO9U8H06mgXUPDKUs="
   }
 }

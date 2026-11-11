@@ -1,10 +1,12 @@
-Subject: [PATCH] Identify the Sairedis registry module by its exact source
+Register the landed Sairedis source with its exact revision.
 
-Sairedis declares version 0.0.2 in its source tree. Use a new revision with the full
-source commit so Bazel resolves this registration to the reviewed archive.
-This registry-only patch changes the module version, not the build rules.
+Retain the published registry gzip toolchain registration for external
+package consumers. The landed source now owns the Common and infrastructure
+dependency selections, so no registry dependency substitution is needed.
+This patch does not change program versions, native sources, ABI or packaging.
 
-Source: https://github.com/securely1g/sonic-sairedis/commit/5e765149371aeca207254641873791db76a95f5f
+Source: https://github.com/securely1g/sonic-sairedis/commit/33443ea1666a23812365d03fb959066ee84c9aa0
+Scope: Registry module identity and inherited gzip toolchain registration.
 
 --- a/MODULE.bazel
 +++ b/MODULE.bazel
@@ -12,8 +14,16 @@ Source: https://github.com/securely1g/sonic-sairedis/commit/5e765149371aeca20725
  # Keep bazel_compatibility in sync with sonic-buildimage's .bazelversion.
  module(
      name = "sonic-sairedis",
--    version = "0.0.2",
-+    version = "0.0.3-5e765149371aeca207254641873791db76a95f5f",
+-    version = "0.0.5",
++    version = "0.0.5-33443ea1666a23812365d03fb959066ee84c9aa0",
      bazel_compatibility = [
          ">=8.5.1",
          "<=8.5.1",
+@@ -41,6 +41,7 @@
+ use_repo(gcc, "gcc_toolchains")
+
+ register_toolchains("@gcc_toolchains//:all")
++register_toolchains("@sonic_build_infra//tools/gzip:toolchain")
+
+ # Native libraries and headers use the shared, pinned Trixie dependency set.
+ apt = use_extension("@rules_distroless//apt:extensions.bzl", "apt")

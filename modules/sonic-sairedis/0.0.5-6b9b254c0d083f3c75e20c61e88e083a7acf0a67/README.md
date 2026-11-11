@@ -1,25 +1,7 @@
-# Syncd runtime service links
+# Sairedis SAI code generation
 
-Registers [Sairedis #7](https://github.com/securely1g/sonic-sairedis/pull/7)
-at source commit `5e765149371aeca207254641873791db76a95f5f`.
-[Buildimage #13](https://github.com/securely1g/sonic-buildimage/pull/13) will consume
-`@sonic_sairedis//syncd:syncd_pkg` directly without reconstructing these links in
-the image. The consumer update is separate.
+This version registers Sairedis master commit `33443ea1666a23812365d03fb959066ee84c9aa0`. Its SAI stub generator runs Python on the build host, so an AMD64 runner can generate Redis, VS and Proxy SAI C++ sources for ARM64. For example, the build executes AMD64 Python and compiles the generated VS stub with AArch64 GCC. [SAI stub generator](https://github.com/securely1g/sonic-sairedis/pull/10)
 
-| Runtime paths | Published package | Candidate |
-| --- | --- | --- |
-| `etc/rc0.d/K01syncd`, `etc/rc6.d/K01syncd`, `etc/rcS.d/S01syncd` | Missing | Root-owned symlinks to `../init.d/syncd`, mode `0777`, timestamp `0` |
+The source archive includes the ZeroMQ and Syncd log format corrections and the ZeroMQ poller shutdown fix. The pending-request test tears down a channel with an unread request, rebinds its endpoint and checks a second request and reply. The registry applies one patch to record the exact module version and retain the gzip toolchain used by package consumers. [ZeroMQ log formats](https://github.com/securely1g/sonic-sairedis/pull/11) · [Syncd and saidump log formats](https://github.com/securely1g/sonic-sairedis/pull/12) · [ZeroMQ shutdown and regression test](https://github.com/securely1g/sonic-sairedis/pull/13)
 
-The links are in the existing producer init TAR for both ordinary VS and DASH
-builds. Existing source archive-contract tests verify their raw headers and
-installed targets. No installation scripts run while packaging.
-
-This candidate carries forward published `0.0.2-54233eede3bb2eb319f6041bc8329586483012d0`'s
-native AMD64/ARM64 build and test targets unchanged, including runtime/debug
-packages and metadata. Dependency selections and published entries are unchanged.
-The numbered module-version patch changes source version `0.0.2` to this exact
-candidate version.
-
-The selected source is the squash commit landed by Sairedis #7 on maintained
-`master`. Native AMD64/ARM64 source CI passed, including raw service-link checks.
-Registry CI validates this exact registration on both native architectures.
+The AMD64 and ARM64 presubmits retain all 19 build targets and seven tests from published version 0.0.4.
