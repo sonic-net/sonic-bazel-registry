@@ -10,7 +10,7 @@
     },
     {
       "name": "rules_distroless",
-      "version": "0.9.4.sonic.18"
+      "version": "0.9.4.sonic.21"
     }
   ],
   "platforms": {
@@ -57,7 +57,8 @@
     "@sonic-build-infra//tools/build_tools:libtool_library",
     "@sonic-build-infra//tools/build_tools:libtool_c_library",
     "@sonic-build-infra//tools/build_tools:libtool_config",
-    "@sonic-build-infra//tools/build_tools:libtool_argv_validation"
+    "@sonic-build-infra//tools/build_tools:libtool_argv_validation",
+    "@sonic-build-infra//binary/tests:strip_static_archive_check"
   ],
   "test_targets": [
     "@sonic-build-infra//tools/build_tools:runtime_test",
@@ -105,7 +106,9 @@
     "@sonic-build-infra//cc/tests/runtime_context:paired_layout_test",
     "@sonic-build-infra//cc/tests/runtime_context:paired_flags_test",
     "@sonic-build-infra//apt:lock_test",
-    "@sonic-build-infra//apt:bookworm_lock_test"
+    "@sonic-build-infra//apt:bookworm_lock_test",
+    "@sonic-build-infra//binary/tests:strip_static_archive_test",
+    "@sonic-build-infra//binary/tests:stripped_archive_consumer_test"
   ],
   "host_platforms": {
     "amd64": "@sonic-build-infra//platforms:x86_64_trixie",

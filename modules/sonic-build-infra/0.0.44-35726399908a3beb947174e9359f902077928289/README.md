@@ -1,16 +1,5 @@
-# Shared Trixie APT collections for OTEL, P4RT and DASH Engine
+# Target-aware static archive stripping
 
-This registration publishes the build-infra revision that merged the [P4RT
-and DASH Engine selections](https://github.com/securely1g/sonic-build-infra/pull/106)
-and the [OTEL runtime selection](https://github.com/securely1g/sonic-build-infra/pull/105).
-It preserves the earlier DASH HA and MACsec collections.
+This registration publishes [merged sonic-build-infra 0baa4acc9eac9ccc793b81104b1580d530271cbe](https://github.com/securely1g/sonic-build-infra/commit/0baa4acc9eac9ccc793b81104b1580d530271cbe) with the target-aware strip_static_archive rule and its behavior tests.
 
-| Image | AMD64 package collections |
-| --- | --- |
-| OTEL | `otel_debian` |
-| P4RT | `p4rt_debian`, `p4rt_debug_debian`, `p4rt_test_debian` |
-| DASH Engine | `dash_engine_debian`, `dash_engine_debug_debian` |
-
-The [source archive](https://github.com/securely1g/sonic-build-infra/commit/316e298e77ab5cfa69af9b0c05ec24d5d94bbe1e) contains
-79 collections and 2,454 package records. The registration retains the existing
-cross-test visibility patch, CI overlays and native presubmit targets.
+It inherits every overlay and presubmit target from `0.0.37-316e298e77ab5cfa69af9b0c05ec24d5d94bbe1e`, including the existing APT collections and kernel tool checks. It adds two native archive tests and the archive checker build. AMD64-to-ARM64 archive checking is also covered by the source repository CI.
