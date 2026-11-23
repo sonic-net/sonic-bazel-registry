@@ -15,7 +15,15 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files(["MODULE.bazel", "source.BUILD.bazel", "source_includes.bzl", "debian.BUILD.bazel", "patches/series", "patches/0001-Add-plugin-support-to-bash.patch"])
 
-expand_template(name = "config_h", template = "config.h.tpl", out = "generated/config/config.h", substitutions = {})
+expand_template(
+    name = "config_h",
+    template = "config.h.tpl",
+    out = "generated/config/config.h",
+    substitutions = select({
+        "@platforms//cpu:x86_64": {"@CHAR_UNSIGNED@": "/* #undef __CHAR_UNSIGNED__ */"},
+        "@platforms//cpu:aarch64": {"@CHAR_UNSIGNED@": "#define __CHAR_UNSIGNED__ 1"},
+    }),
+)
 expand_template(name = "pathnames_h", template = "@bash_src//:pathnames.h.in", out = "generated/config/pathnames.h", substitutions = {"@DEBUGGER_START_FILE@": "/usr/share/bashdb/bashdb-main.inc"})
 genrule(
     name = "version_h",
@@ -34,7 +42,6 @@ cc_library(
     name = "config_headers",
     hdrs = [":config_h", ":pathnames_h", ":version_h"],
     includes = ["generated/config"],
-    target_compatible_with = ["@platforms//cpu:x86_64"],
 )
 
 alias(name = "tinfo", actual = "@bash_build_debian//libncurses-dev:libtinfo_cc")
@@ -81,7 +88,7 @@ debian_changelogs(
     debian_files = {"@bash_debian//:debian/compat": "compat"},
     upstream = "@bash_src//:CHANGES",
     package = "bash",
-    architecture = "amd64",
+    architecture = select({"@platforms//cpu:x86_64": "amd64", "@platforms//cpu:aarch64": "arm64"}),
     outs = ["docs/changelog", "docs/changelog.Debian"],
 )
 
@@ -239,7 +246,17 @@ py_test(
     name = "installation_test",
     srcs = ["installation_test.py"],
     main = "installation_test.py",
-    args = ["$(rootpath :bash.runtime)", "$(rootpath :bash.runtime.debug_symbols)", "$(rootpath :bash.control)", "$(rootpath :bash.runtime_metadata)", "$(rootpath :installed_bash_executable)", "$(rootpath :build_bash_executable)", "$(rootpath :original_installation.json)", "$(rootpath :bash)"],
-    data = [":bash.runtime", ":bash.runtime.debug_symbols", ":bash.control", ":bash.runtime_metadata", ":installed_bash_executable", ":build_bash_executable", ":original_installation.json", ":bash"],
+    args = ["$(rootpath :bash.runtime)", "$(rootpath :bash.runtime.debug_symbols)", "$(rootpath :bash.control)", "$(rootpath :bash.runtime_metadata)", "$(rootpath :original_installation.json)", "$(rootpath :bash)"] + select({"@platforms//cpu:x86_64": ["amd64"], "@platforms//cpu:aarch64": ["arm64"]}),
+    data = [":bash.runtime", ":bash.runtime.debug_symbols", ":bash.control", ":bash.runtime_metadata", ":original_installation.json", ":bash"],
     deps = ["@sonic_build_infra//deb:elf_metadata"],
+)
+
+# Original shell execution checks stay in the AMD64 presubmit. ARM64 only
+# compiles the product and checks the installed bytes, ELF and package metadata.
+py_test(
+    name = "cli_test",
+    srcs = ["cli_test.py"],
+    main = "cli_test.py",
+    args = ["$(rootpath :installed_bash_executable)", "$(rootpath :build_bash_executable)"],
+    data = [":installed_bash_executable", ":build_bash_executable"],
 )
