@@ -1,9 +1,5 @@
-# Debian package tar compatibility
+# Native SONiC build interfaces
 
-This release registers commit `da5f4c8d370f501572f435ade330ec209c9c0203` from [Infra #130](https://github.com/securely1g/sonic-build-infra/pull/130).
+Registers merged [Infra #132](https://github.com/securely1g/sonic-build-infra/pull/132), commit `45b500f6e821df5ebe981abdbb82797ed3abd4fd`, with source module base version `0.0.42`.
 
-The shared Debian package assembler writes tar headers accepted by dpkg for
-long payload names and link targets. Kernel debug packages exercise these
-paths when installed on Debian Trixie. The registry presubmit runs
-the dpkg unpack regression and assembler tests on AMD64 and ARM64 alongside
-the existing compiler, runtime and packaging checks.
+The source supplies immutable APT inputs, runtime package metadata helpers, configured installation paths, DTrace and Python PGO tools. Existing AMD64 and ARM64 presubmits are retained. Both architectures add the configured installation path test; AMD64 additionally builds the two new execution tools.
