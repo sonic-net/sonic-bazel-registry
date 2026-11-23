@@ -58,7 +58,8 @@
     "@sonic-build-infra//tools/build_tools:libtool_c_library",
     "@sonic-build-infra//tools/build_tools:libtool_config",
     "@sonic-build-infra//tools/build_tools:libtool_argv_validation",
-    "@sonic-build-infra//binary/tests:strip_static_archive_check"
+    "@sonic-build-infra//binary/tests:strip_static_archive_check",
+    "@sonic-build-infra//oci:layer_assembly"
   ],
   "test_targets": [
     "@sonic-build-infra//tools/build_tools:runtime_test",
