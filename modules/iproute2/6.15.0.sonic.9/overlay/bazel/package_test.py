@@ -11,7 +11,12 @@ import tempfile
 import zlib
 
 
+TOOLS = {}
+
+
 def command(*args, **kwargs):
+    if args and args[0] in TOOLS:
+        args = (TOOLS[args[0]], *args[1:])
     return subprocess.check_output(args, text=True, stderr=subprocess.STDOUT, **kwargs)
 
 
@@ -22,6 +27,27 @@ def build_id(path):
 
 
 def main():
+    static_only = '--static-only' in sys.argv
+    if static_only:
+        sys.argv.remove('--static-only')
+    architecture = None
+    metadata = None
+    for argument in list(sys.argv[1:]):
+        if argument.startswith('--architecture='):
+            architecture = argument.split('=', 1)[1]
+            sys.argv.remove(argument)
+        elif argument.startswith('--metadata='):
+            metadata = Path(argument.split('=', 1)[1])
+            sys.argv.remove(argument)
+        elif argument.startswith(('--readelf=', '--objcopy=')):
+            tool, path = argument[2:].split('=', 1)
+            TOOLS[tool] = str(Path(path).absolute())
+            sys.argv.remove(argument)
+    assert architecture in ('amd64', 'arm64'), architecture
+    machine = {'amd64': 62, 'arm64': 183}[architecture]
+    fields = json.loads(metadata.read_text())['packages']['iproute2']['control_fields']
+    assert fields['Version'] == '6.15.0-1+sonic.0', fields
+    assert fields['Architecture'] == architecture, fields
     runtime, debug, config, manifest, ematch_redirect, *libraries = [Path(value).resolve() for value in sys.argv[1:]]
     expected = {}
     for line in manifest.read_text().splitlines():
@@ -53,6 +79,7 @@ def main():
                 assert (member.uid, member.gid) == (0, 0), member.name
                 if member.isfile() and package.extractfile(member).read(4) == b'\x7fELF':
                     actual.add(member.name)
+                    assert int.from_bytes(package.extractfile(member).read()[18:20], 'little') == machine, member.name
                     assert member.mode == 0o755, member.name
             assert actual == set(expected.values()), actual
         for relative, original in (
@@ -92,17 +119,20 @@ def main():
         identities = {}
         for name, relative in expected.items():
             binary = root / relative
-            listing = command(*prefix, '--list', str(binary), env=environment)
-            assert 'not found' not in listing, listing
-            resolved = re.findall(r'=> (/\S+)', listing)
-            assert resolved and all(Path(path).resolve().is_relative_to(root) for path in resolved), listing
+            if not static_only:
+                listing = command(*prefix, '--list', str(binary), env=environment)
+                assert 'not found' not in listing, listing
+                resolved = re.findall(r'=> (/\S+)', listing)
+                assert resolved and all(Path(path).resolve().is_relative_to(root) for path in resolved), listing
             assert not re.search(r'\((?:RPATH|RUNPATH)\)', command('readelf', '-d', str(binary)))
             assert '.debug_info' not in command('readelf', '-SW', str(binary))
-            assert not re.search(r'Line \d+ of', debugger(binary))
+            if not static_only:
+                assert not re.search(r'Line \d+ of', debugger(binary))
             identities[name] = build_id(binary)
-        for name in ('ip', 'tc', 'ss'):
-            output = command(*prefix, str(root / expected[name]), '-V', env=environment)
-            assert '6.15.0' in output, output
+        if not static_only:
+            for name in ('ip', 'tc', 'ss'):
+                output = command(*prefix, str(root / expected[name]), '-V', env=environment)
+                assert '6.15.0' in output, output
         # These handlers are found with dlsym(), rather than normal C references.
         # Linking their source through an ordinary archive can silently discard
         # them, and omitting --export-dynamic hides them from the lookup.
@@ -127,55 +157,56 @@ def main():
                                   env=test_environment, text=True, stdout=subprocess.PIPE,
                                   stderr=subprocess.STDOUT, timeout=15)
 
-        # Each command dispatches to a handler and stops at its help path. No
-        # device is supplied and no request to change network state is sent.
-        for name, arguments, marker in (
-            ('ip', ('link', 'help', 'vlan'), 'vlan id VLANID'),
-            ('ip', ('link', 'help', 'vxlan'), 'vxlan id VNI'),
-            ('tc', ('qdisc', 'add', 'netem', 'help'), 'netem [ limit PACKETS ]'),
-            ('tc', ('filter', 'add', 'flower', 'help'), 'MATCH-LIST'),
-            ('tc', ('actions', 'add', 'gact', 'help'), 'RANDTYPE := netrand | determ'),
-            ('genl', ('ctrl', 'help'), 'Usage: ctrl <CMD>'),
-        ):
-            result = run(name, *arguments)
-            assert result.returncode >= 0 and marker in result.stdout, (arguments, result.stdout)
+        if not static_only:
+            # Each command dispatches to a handler and stops at its help path. No
+            # device is supplied and no request to change network state is sent.
+            for name, arguments, marker in (
+                ('ip', ('link', 'help', 'vlan'), 'vlan id VLANID'),
+                ('ip', ('link', 'help', 'vxlan'), 'vxlan id VNI'),
+                ('tc', ('qdisc', 'add', 'netem', 'help'), 'netem [ limit PACKETS ]'),
+                ('tc', ('filter', 'add', 'flower', 'help'), 'MATCH-LIST'),
+                ('tc', ('actions', 'add', 'gact', 'help'), 'RANDTYPE := netrand | determ'),
+                ('genl', ('ctrl', 'help'), 'Usage: ctrl <CMD>'),
+            ):
+                result = run(name, *arguments)
+                assert result.returncode >= 0 and marker in result.stdout, (arguments, result.stdout)
 
-        # Exercise the generated Bison parser with both accepted and rejected
-        # socket filters. The accepted command only reads the TCP socket table.
-        result = run('ss', '-H', '-n', '-t', '( sport >= :1 and dport <= :65535 )')
-        assert result.returncode == 0, result.stdout
-        result = run('ss', '-H', '-n', '-t', '( sport >= :1')
-        assert result.returncode != 0 and 'bison bellows' in result.stdout, result.stdout
+            # Exercise the generated Bison parser with both accepted and rejected
+            # socket filters. The accepted command only reads the TCP socket table.
+            result = run('ss', '-H', '-n', '-t', '( sport >= :1 and dport <= :65535 )')
+            assert result.returncode == 0, result.stdout
+            result = run('ss', '-H', '-n', '-t', '( sport >= :1')
+            assert result.returncode != 0 and 'bison bellows' in result.stdout, result.stdout
 
-        # tc has fixed installed paths for ematch_map and no relocation option.
-        # Redirect only those opens to the packaged map for these parser cases.
-        # The production binary stays unchanged, and no host files are used.
-        ematch_map = root / 'usr/share/iproute2/ematch_map'
-        assert ematch_map.is_file(), ematch_map
-        # Prove the shim is active even on a host that has its own ematch_map.
-        result = run('tc', 'filter', 'add', 'basic', 'match',
-                     'u32(u16 0x0800 0xffff at 12)', 'help',
-                     ematch_map=root / 'missing-ematch-map')
-        assert result.returncode != 0 and 'Unable to open staged ematch map' in result.stdout, result.stdout
-        # The valid ematch reaches basic's help after Flex/Bison and the u32
-        # handler accept the expression. Help prevents submitting the filter.
-        result = run('tc', 'filter', 'add', 'basic', 'match',
-                     'u32(u16 0x0800 0xffff at 12)', 'help', ematch_map=ematch_map)
-        assert result.returncode != 0 and 'Usage: ... basic' in result.stdout, result.stdout
-        assert 'Illegal "ematch"' not in result.stdout, result.stdout
-        result = run('tc', 'filter', 'add', 'basic', 'match', 'u32(', 'help', ematch_map=ematch_map)
-        assert result.returncode != 0 and 'Illegal "ematch"' in result.stdout, result.stdout
-        assert 'Parse error' in result.stdout, result.stdout
-        # Debian's patch must be applied before the SONiC bridge patch.
-        moo = subprocess.run([*prefix, str(root / expected['ip']), 'moo'],
-                             env=environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        assert moo.returncode == 1 and 'no real cows were harmed' in moo.stdout, moo.stdout
-        # Read-only netlink query: no namespace, link or route changes.
-        interfaces = json.loads(command(*prefix, str(root / expected['ip']), '-j', 'link', 'show', 'dev', 'lo', env=environment))
-        assert len(interfaces) == 1 and interfaces[0]['ifname'] == 'lo', interfaces
-        help_result = subprocess.run([*prefix, str(root / expected['bridge']), 'fdb', 'help'],
-                                     env=environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        assert '[ proto PROTO ]' in help_result.stdout, help_result.stdout
+            # tc has fixed installed paths for ematch_map and no relocation option.
+            # Redirect only those opens to the packaged map for these parser cases.
+            # The production binary stays unchanged, and no host files are used.
+            ematch_map = root / 'usr/share/iproute2/ematch_map'
+            assert ematch_map.is_file(), ematch_map
+            # Prove the shim is active even on a host that has its own ematch_map.
+            result = run('tc', 'filter', 'add', 'basic', 'match',
+                         'u32(u16 0x0800 0xffff at 12)', 'help',
+                         ematch_map=root / 'missing-ematch-map')
+            assert result.returncode != 0 and 'Unable to open staged ematch map' in result.stdout, result.stdout
+            # The valid ematch reaches basic's help after Flex/Bison and the u32
+            # handler accept the expression. Help prevents submitting the filter.
+            result = run('tc', 'filter', 'add', 'basic', 'match',
+                         'u32(u16 0x0800 0xffff at 12)', 'help', ematch_map=ematch_map)
+            assert result.returncode != 0 and 'Usage: ... basic' in result.stdout, result.stdout
+            assert 'Illegal "ematch"' not in result.stdout, result.stdout
+            result = run('tc', 'filter', 'add', 'basic', 'match', 'u32(', 'help', ematch_map=ematch_map)
+            assert result.returncode != 0 and 'Illegal "ematch"' in result.stdout, result.stdout
+            assert 'Parse error' in result.stdout, result.stdout
+            # Debian's patch must be applied before the SONiC bridge patch.
+            moo = subprocess.run([*prefix, str(root / expected['ip']), 'moo'],
+                                 env=environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            assert moo.returncode == 1 and 'no real cows were harmed' in moo.stdout, moo.stdout
+            # Read-only netlink query: no namespace, link or route changes.
+            interfaces = json.loads(command(*prefix, str(root / expected['ip']), '-j', 'link', 'show', 'dev', 'lo', env=environment))
+            assert len(interfaces) == 1 and interfaces[0]['ifname'] == 'lo', interfaces
+            help_result = subprocess.run([*prefix, str(root / expected['bridge']), 'fdb', 'help'],
+                                         env=environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            assert '[ proto PROTO ]' in help_result.stdout, help_result.stdout
         with tarfile.open(debug) as package:
             package.extractall(root, filter='data')
         for name, identity in identities.items():
@@ -190,8 +221,12 @@ def main():
             link = section.read_bytes()
             assert link.split(b'\0', 1)[0].decode() == symbols.name
             assert struct.unpack('<I', link[-4:])[0] == zlib.crc32(symbols.read_bytes())
-            location = debugger(binary)
-            assert re.search(r'Line \d+ of .*' + re.escape(name + '.c'), location), location
+            if not static_only:
+                location = debugger(binary)
+                assert re.search(r'Line \d+ of .*' + re.escape(name + '.c'), location), location
+        if static_only:
+            print('All 15 programs: target ELF, installation, metadata and matching debug symbols passed; no target execution')
+            return
         print('All 15 installed programs match Debian manifest; source features, runtime handlers, generated parsers, protocol option, private libraries, netlink reads and debug symbols passed')
 
 

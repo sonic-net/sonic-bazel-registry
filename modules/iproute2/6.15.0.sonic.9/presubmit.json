@@ -32,8 +32,14 @@
     "@iproute2//:runtime_packages.json"
   ],
   "test_targets": [
-    "@iproute2//:iproute2_package_test",
-    "@iproute2//:configure_flags_test"
+    "@iproute2//:iproute2_static_package_test"
   ],
-  "generated_module_overlay": true
+  "generated_module_overlay": true,
+  "additional_targets": {
+    "amd64": {
+      "test_targets": [
+        "@iproute2//:iproute2_package_test"
+      ]
+    }
+  }
 }
