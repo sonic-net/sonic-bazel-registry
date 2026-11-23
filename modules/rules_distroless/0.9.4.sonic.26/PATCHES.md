@@ -1,3 +1,12 @@
+# Cross-package header directory aliases in 0.9.4.sonic.26
+
+This candidate retains the complete published .25 source and patch stack.
+Patch 0063 expands installed header directory aliases across declared package
+dependencies, retaining each header leaf owner, quoted include fragments,
+extensionless headers and transitive pkg-config requirements. Patch 0064
+advances the module version. The integration fixture compiles a client through
+a directory alias spanning two dependency packages and checks its result.
+
 # Patch provenance for 0.9.4.sonic.25
 
 This release extends the published `0.9.4.sonic.24` patch stack with

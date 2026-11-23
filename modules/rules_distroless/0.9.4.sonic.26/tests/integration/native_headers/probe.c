@@ -31,6 +31,9 @@
 #include <alpha_api.h>
 #include <beta_api.h>
 #define RESULT (ALPHA_VALUE + BETA_VALUE)
+#elif HEADER_CASE == 6
+#include <use.h>
+#define RESULT CLIENT_VALUE
 #endif
 
 int header_probe(void) {

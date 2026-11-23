@@ -65,7 +65,9 @@
         "0059-reproducible-lock-import.patch": "sha256-2LlC7FmOOr2MkaXBm6eHc3wL5y7YTh78H4Eofmr0SMU=",
         "0060-declare-native-aliases.patch": "sha256-wMhqEJMeyESW1+nsA7+/w2yP4yfLyGwBgQrWBmDD93g=",
         "0061-module-version-25.patch": "sha256-8xPkXq8HAgIs1Ag1Skk+4fscXwWhyg0mU2kOHVW2mgY=",
-        "0062-share-debian-archives-and-pkgconfig-work.patch": "sha256-jBvE4F96C/i9hVyW211L259q2KgWCyaKdBEJjyfPFrA="
+        "0062-share-debian-archives-and-pkgconfig-work.patch": "sha256-jBvE4F96C/i9hVyW211L259q2KgWCyaKdBEJjyfPFrA=",
+        "0063-expand-foreign-header-directories.patch": "sha256-2gwU+KdK70LFKfvV6gSPOlTP0MPH+o539MmhQFaRGv0=",
+        "0064-module-version-26.patch": "sha256-+sArJgU5gK5lhkNSD/j+6OFPUkqZXFl9V+luqtcDJ0g="
     },
     "patch_strip": 1,
     "overlay": {
