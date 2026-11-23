@@ -70,7 +70,8 @@
     "//multifile_tar:unpack_test",
     "//archive_tool_mapping:archive_tool_mapping_test",
     "//native_runtime:header_only_ownership_test",
-    "//native_runtime:link_ownership_test"
+    "//native_runtime:link_ownership_test",
+    "//native_headers:foreign_directory_test"
   ],
   "integration_test_module": "tests/integration"
 }

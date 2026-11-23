@@ -32,6 +32,7 @@ filegroup(
         ("overlay", 3, "@header_variant//:pkgconfig/libvariant-overlay"),
         ("without_pkgconfig", 4, "@header_plain//:plain_headers"),
         ("unmatched_modules", 5, "@header_unmatched//:unmatched_headers"),
+        ("foreign_directory", 6, "@header_foreign_client//:pkgconfig/client"),
     ]
 ]
 
@@ -41,5 +42,5 @@ filegroup(
         srcs = ["test.c"],
         deps = [":" + name + "_probe"],
     )
-    for name in ["default", "transitive", "overlay", "without_pkgconfig", "unmatched_modules"]
+    for name in ["default", "transitive", "overlay", "without_pkgconfig", "unmatched_modules", "foreign_directory"]
 ]

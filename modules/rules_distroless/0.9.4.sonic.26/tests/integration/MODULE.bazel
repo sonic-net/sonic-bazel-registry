@@ -2,7 +2,7 @@
 
 module(name = "locked_import_integration")
 
-bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.25")
+bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.26")
 # Exercise the version selected by the gNMI consumer on Bazel 8.
 bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
@@ -62,12 +62,35 @@ header_imports.package(
     archive = "@native_header_fixtures//:unmatched-dev.deb",
     digest = "@native_header_fixtures//:unmatched-dev.sha256",
 )
+header_imports.package(
+    package = "alias-left-dev",
+    archive = "@native_header_fixtures//:alias-left-dev.deb",
+    digest = "@native_header_fixtures//:alias-left-dev.sha256",
+)
+header_imports.package(
+    package = "alias-right-dev",
+    archive = "@native_header_fixtures//:alias-right-dev.deb",
+    digest = "@native_header_fixtures//:alias-right-dev.sha256",
+)
+header_imports.package(
+    package = "alias-dev",
+    archive = "@native_header_fixtures//:alias-dev.deb",
+    digest = "@native_header_fixtures//:alias-dev.sha256",
+    dependencies = ["alias-left-dev", "alias-right-dev"],
+)
+header_imports.package(
+    package = "alias-client-dev",
+    archive = "@native_header_fixtures//:alias-client-dev.deb",
+    digest = "@native_header_fixtures//:alias-client-dev.sha256",
+    dependencies = ["alias-dev"],
+)
 use_repo(
     header_imports,
     header_variant = "header-fixture_libvariant-dev-all_1",
     header_middle = "header-fixture_libmiddle-dev-all_1",
     header_plain = "header-fixture_plain-dev-all_1",
     header_unmatched = "header-fixture_unmatched-dev-all_1",
+    header_foreign_client = "header-fixture_alias-client-dev-all_1",
 )
 
 check_catalog_tools = use_repo_rule("//native_catalog:fixtures.bzl", "check_catalog_tools")
