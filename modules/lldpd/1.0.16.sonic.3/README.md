@@ -1,66 +1,47 @@
-## Dependency refresh for `1.0.16.sonic.2`
+# lldpd 1.0.16, native Bazel build
 
-This candidate retains the `1.0.16.sonic.1` source and existing patches. Its module dependencies select the newest non-yanked versions published at `3d1cc5e8dfd553d2acbe4198e504a245e6bdbddf`. Versions introduced by this refresh are not dependency targets of the same refresh.
+This entry retains SONiC's Debian source baseline `1.0.16-1+deb12u1`, its two
+Debian patches, and its two SONiC patches. One registry portability patch
+uses libbsd's public namespaced headers; see `PATCHES.md`. SHA256-verified original and Debian
+archives are prepared by `sonic-build-infra`'s ordered source rule.
 
-# LLDP source package for SONiC
+One native target graph supports AMD64 and ARM64 on Debian Trixie. Bazel owns
+individual C compilation, target preprocessing, atom initializer generation,
+shared-library linking, document templates, compression, and installation.
+Autoconf is used only during migration to inspect the selected target toolchain.
+Ordinary builds expand `config.h.in` directly and execute native language rules.
 
-The Bazel Central Registry has no `lldpd` module, and upstream `1.0.16` has no
-Bazel definitions. This integration keeps the existing upstream build system.
+Public installation interfaces:
 
-This module keeps SONiC's `lldpd 1.0.16-1+deb12u1` baseline. It reconstructs
-the Debian source from the two SHA256-verified source archives, applies Debian's
-recorded quilt series, then applies the two SONiC patches in their maintained
-order. The final hunk in SONiC's second patch has one missing context line;
-only its hunk counts are corrected for Bazel's parser. All 470 prepared source
-files were compared with GNU patch applying the unchanged legacy patch bytes.
+- `@lldpd//:lldpd.runtime`: daemon, CLI, `liblldpctl.so.4.9.1`, configuration,
+  Debian init/systemd files, manuals, completions, documentation and copyright.
+- `@lldpd//:lldpd.runtime.debug_symbols`: build-id-matched detached DWARF.
+- `@lldpd//:liblldpctl-dev.runtime`: public headers, development symlink and
+  pkg-config file.
+- `@lldpd//:lldpd.runtime_metadata`: package identity and dependencies derived
+  from the Debian recipe and actual installed payloads.
+- `@lldpd//:lldpctl`: public headers and shared-library `CcInfo`.
 
-The native AMD64/Trixie build uses upstream configure/Make through
-`rules_foreign_cc`, the shared SONiC GCC/sysroot and shared execution tools.
-The `lldpd_deps` set in the shared `sonic-build-infra` production lock supplies
-the external Debian headers/libraries used by this component. Its complete
-AMD64 closure preserves all 69 package identities, archive hashes and dependency
-edges from the earlier component-local lock. This entry contains no duplicate
-APT lock; both its module definition and fetched source import the shared lock.
-No component execution-tool set, DEB producer, or Make package-cache dependency
-is introduced.
+The historical `:runtime` and `:runtime.debug_symbols` labels forward the
+same artifacts and `DebugSymbolsInfo`. Consumers select this module version;
+installation interfaces preserve the existing service and library layout.
+The library directory follows the target platform's Debian multiarch triplet.
+The original Libtool `13:1:9` ABI remains SONAME `liblldpctl.so.4`.
 
-`@lldpd//:runtime` and `@lldpd//:runtime.debug_symbols` are the public installed
-payloads. `lldpd`, `lldpcli` (also exposed through the `lldpctl` symlink), and
-`liblldpctl.so.4.9.1` come from the same declared native source action. Detached
-symbols are paired with the installed stripped ELFs. The source action retains
-SONiC's 2 MiB/4 MiB netlink buffers and Debian's protocol, SNMP, XML, readline,
-libbsd, PIE and privilege-separation selections.
+System dependencies consume public APT `CcInfo` from the shared production lock:
+`frr_deps`, `dhcpmon_debian`, `iproute2_deps`, and `trixie`. These sets share
+one fixed source configuration and one lock. Runtime test archives are separate
+from compilation inputs. This entry introduces no component APT lock.
 
-The runtime payload includes upstream installed configuration/manual/completion
-files plus Debian's defaults, init script and copyright. The numeric LLDP CLI
-ownership follows the actual SONiC config-engine parent: `_lldpd` is UID101,
-its primary group is GID102, and `adm` is GID4. `lldpcli` is UID101:GID4 mode4750.
-The image consumer must declare the corresponding account using the existing
-account-layer rule. A runtime TAR neither creates accounts nor executes Debian
-maintainer scripts. Its installation and complete image behavior are separate
-acceptance checks; this source module does not claim full LLDP image integration.
+Debian PIE, SNMP, XML, readline, libbsd, protocol extensions and privilege
+separation remain enabled. SONiC netlink receive buffers remain 2 MiB/4 MiB.
+`lldpcli` retains UID 101, group `adm` GID 4 and mode 4750 to match the SONiC
+parent image's `_lldpd` account. The image consumer creates that account,
+implements service behavior, and handles the merged `/usr` service path.
+A source TAR supplies installation content without executing maintainer scripts.
 
-The nine unchanged upstream C protocol/parser suites run with declared target
-libraries. Installed checks inspect exact payload bytes, ownership/modes,
-symlinks, feature macros, ELF architecture/hardening, Build IDs and debug-link
-checksums, and isolated GDB source-line/type lookup with a no-symbol negative
-control. Only the exact built payloads are used for loader/version checks.
-GDB is the same CI inspection tool already installed by registry validation.
-
-Ordinary source changes are handled by upstream Make inside one Bazel foreign
-action. Bazel caches that complete action and the separate TAR/image actions;
-this module does not claim per-C-file Bazel compilation caching. Preserve the
-checked source hashes, patch order and target-library lock when updating it.
-
-The shared target dependency set selects AMD64 `check`, `libbsd-dev`, `libcap-dev`,
-`libevent-dev`, `libpci-dev`, `libreadline-dev`, `libsnmp-dev`, and `libxml2-dev`
-from the recorded Debian snapshots. Refresh it with the public
-`rules_distroless` APT resolver when intentionally changing these inputs, and
-keep one coherent version of each architecture/package in the imported lock.
-For example, the selected security `linux-libc-dev` is `6.12.96-1`; retaining
-both it and the older `6.12.86-1` from a separate root's resolution is invalid.
-Execution tools continue to come from the shared `build_tools` set.
-
-The installed service retains Debian's `lib/systemd/system/lldpd.service`
-path. The OCI consumer must check how its parent's merged `/usr` filesystem
-handles that path, along with the account and setuid ownership above.
+The nine unchanged upstream C suites validate protocol and parser behavior.
+`package_test` checks the independent Debian installation inventory, public API
+consumer, ELF architecture, PIE/RELRO/NOW, SONAME, installed loader resolution,
+and matching build-id/debuglink/DWARF. Both architectures use the same checks;
+execution checks require a native worker, while cross builds validate artifacts.
