@@ -212,7 +212,7 @@
 #define PROTOTYPES 1
 #define __PROTOTYPES 1
 
-/* #undef __CHAR_UNSIGNED__ */
+@CHAR_UNSIGNED@
 
 /* Define if the compiler supports `long long int' variables. */
 #define HAVE_LONG_LONG_INT 1

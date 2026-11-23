@@ -12,14 +12,16 @@ DEBIAN_BUILD_COPTS = reproducibility_copts() + [
     "-Werror=implicit-function-declaration",
     "-fstack-protector-strong",
     "-fstack-clash-protection",
-    "-fcf-protection",
     "-Wformat",
     "-Werror=format-security",
     "-Wall",
     "-Wdate-time",
     "-U_FORTIFY_SOURCE",
     "-D_FORTIFY_SOURCE=2",
-]
+] + select({
+    "@platforms//cpu:x86_64": ["-fcf-protection"],
+    "@platforms//cpu:aarch64": ["-mbranch-protection=standard"],
+})
 
 # Debian Trixie's dpkg-buildflags linker hardening, plus the build ID needed
 # by sonic_deb to strip the main package and populate its dbgsym package.
@@ -373,24 +375,30 @@ cc_binary(
 # Original configure substitutes bashbug.sh.in, Make substitutes PATCHLEVEL,
 # and Debian installation removes both reproducibility prefix-map arguments.
 # CC/CFLAGS below are the original Debian packaging metadata after that sed.
+_BASHBUG_COMMON = {
+    "@CC@": "gcc",
+    "@host_os@": "linux-gnu",
+    "!PATCHLEVEL!": "37",
+    "@BASHVERS@": "5.2",
+    "@RELSTATUS@": "release",
+}
 expand_template(
-    name = "bashbug_amd64",
-    out = "generated/amd64/bashbug",
-    substitutions = {
-        "@CC@": "gcc",
-        "@CFLAGS@": "-g -O2 -Werror=implicit-function-declaration -fstack-protector-strong -fstack-clash-protection -Wformat -Werror=format-security -fcf-protection -Wall",
-        "@host_cpu@": "x86_64",
-        "@host@": "x86_64-pc-linux-gnu",
-        "@host_os@": "linux-gnu",
-        "!PATCHLEVEL!": "37",
-        "@BASHVERS@": "5.2",
-        "@RELSTATUS@": "release",
-    },
+    name = "bashbug",
+    out = "generated/bashbug",
+    substitutions = select({
+        "@platforms//cpu:x86_64": _BASHBUG_COMMON | {
+            "@CFLAGS@": "-g -O2 -Werror=implicit-function-declaration -fstack-protector-strong -fstack-clash-protection -Wformat -Werror=format-security -fcf-protection -Wall",
+            "@host_cpu@": "x86_64",
+            "@host@": "x86_64-pc-linux-gnu",
+        },
+        "@platforms//cpu:aarch64": _BASHBUG_COMMON | {
+            "@CFLAGS@": "-g -O2 -Werror=implicit-function-declaration -fstack-protector-strong -fstack-clash-protection -Wformat -Werror=format-security -mbranch-protection=standard -Wall",
+            "@host_cpu@": "aarch64",
+            "@host@": "aarch64-unknown-linux-gnu",
+        },
+    }),
     template = "support/bashbug.sh.in",
-    target_compatible_with = ["@platforms//cpu:x86_64"],
 )
-
-alias(name = "bashbug", actual = ":bashbug_amd64")
 
 exports_files([
     "CHANGES",
