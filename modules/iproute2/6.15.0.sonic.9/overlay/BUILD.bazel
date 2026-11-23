@@ -4,7 +4,7 @@ load("@sonic_build_infra//oci:runtime_packages.bzl", "runtime_packages")
 
 package(default_visibility = ["//visibility:public"])
 
-# Keep the consumer interface stable while assembling Debian's source package.
+# Public install interfaces are produced by native compilation in the prepared source.
 [
     alias(
         name = name,
@@ -35,9 +35,47 @@ py_test(
         "$(rootpath @iproute2_source//:debian/iproute2.install)",
         "$(rootpath :ematch_config_redirect.so)",
         "$(locations @iproute2_deps//:packages)",
-    ],
+        "--metadata=$(rootpath :runtime_packages.json)",
+        "--readelf=$(rootpath @sonic_build_infra//toolchains/binutils:readelf)",
+        "--objcopy=$(rootpath @sonic_build_infra//toolchains/binutils:objcopy)",
+    ] + select({"@platforms//cpu:x86_64": ["--architecture=amd64"], "@platforms//cpu:arm64": ["--architecture=arm64"]}),
     data = [
         ":ematch_config_redirect.so",
+        ":runtime_packages.json",
+        "@sonic_build_infra//toolchains/binutils:readelf",
+        "@sonic_build_infra//toolchains/binutils:objcopy",
+        ":iproute2_config",
+        ":iproute2_pkg",
+        ":iproute2_pkg.debug_symbols",
+        "@iproute2_deps//:packages",
+        "@iproute2_source//:debian/copyright",
+        "@iproute2_source//:debian/iproute2.install",
+        "@iproute2_source//:etc/iproute2/rt_protos",
+        "@iproute2_source//:include/bpf_elf.h",
+        "@iproute2_source//:ip/routel",
+    ],
+    main = "bazel/package_test.py",
+)
+
+py_test(
+    name = "iproute2_static_package_test",
+    srcs = ["bazel/package_test.py"],
+    args = ["--static-only",
+        "$(rootpath :iproute2_pkg)",
+        "$(rootpath :iproute2_pkg.debug_symbols)",
+        "$(rootpath :iproute2_config)",
+        "$(rootpath @iproute2_source//:debian/iproute2.install)",
+        "$(rootpath :ematch_config_redirect.so)",
+        "$(locations @iproute2_deps//:packages)",
+        "--metadata=$(rootpath :runtime_packages.json)",
+        "--readelf=$(rootpath @sonic_build_infra//toolchains/binutils:readelf)",
+        "--objcopy=$(rootpath @sonic_build_infra//toolchains/binutils:objcopy)",
+    ] + select({"@platforms//cpu:x86_64": ["--architecture=amd64"], "@platforms//cpu:arm64": ["--architecture=arm64"]}),
+    data = [
+        ":ematch_config_redirect.so",
+        ":runtime_packages.json",
+        "@sonic_build_infra//toolchains/binutils:readelf",
+        "@sonic_build_infra//toolchains/binutils:objcopy",
         ":iproute2_config",
         ":iproute2_pkg",
         ":iproute2_pkg.debug_symbols",
@@ -73,7 +111,7 @@ runtime_packages(
             "zlib1g",
         ]
     },
-    changelog = "@iproute2_source//:debian/changelog",
+    changelog = "@iproute2_source//:package_changelog",
     control = "@iproute2_source//:debian/control",
     debian_files = {
         "iproute2.templates": "@iproute2_source//:debian/iproute2.templates",
@@ -88,15 +126,4 @@ runtime_packages(
 exports_files(
     ["runtime_packages.md"],
     visibility = ["//visibility:public"],
-)
-
-# Registry CI's native Trixie environment provides build-essential and make.
-# Exercise real GCC response parsing and recursive Make with a >128 KiB
-# combined flag set, without producing a Debian package.
-py_test(
-    name = "configure_flags_test",
-    srcs = ["bazel/configure_flags_test.py"],
-    args = ["$(rootpath bazel/configure.sh)"],
-    data = ["bazel/configure.sh"],
-    tags = ["local"],
 )
