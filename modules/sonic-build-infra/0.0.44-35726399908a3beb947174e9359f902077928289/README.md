@@ -1,5 +1,3 @@
-# Native SONiC build interfaces
+# sonic-build-infra 0.0.44-35726399908a3beb947174e9359f902077928289
 
-Registers merged [Infra #132](https://github.com/securely1g/sonic-build-infra/pull/132), commit `45b500f6e821df5ebe981abdbb82797ed3abd4fd`, with source module base version `0.0.42`.
-
-The source supplies immutable APT inputs, runtime package metadata helpers, configured installation paths, DTrace and Python PGO tools. Existing AMD64 and ARM64 presubmits are retained. Both architectures add the configured installation path test; AMD64 additionally builds the two new execution tools.
+This entry registers the upstream OCI layer assembly, base inventory, source runtime and streaming Docker archive rules. It retains the existing independent consumer overlay and checks.
