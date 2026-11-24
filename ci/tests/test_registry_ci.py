@@ -559,22 +559,29 @@ class SelectionTests(FixtureTestCase):
 class VersionPolicyTests(FixtureTestCase):
     """Exercise publication boundaries with real Git histories, including stacks."""
 
-    def test_dependency_alignment_requires_exact_base_and_modules_tree(self) -> None:
+    def test_compaction_requires_exact_ancestor_and_modules_tree(self) -> None:
         self.entry("beta", "1.0.0")
         self.entry("beta", "2.0.0")
         self.entry("alpha", "3.0.0")
         manifest = self.entry("alpha", "1.0.0") / "MODULE.bazel"
         declaration = manifest.read_text() + 'bazel_dep(name = "beta", version = "1.0.0")\n'
         manifest.write_text(declaration)
+        self.entry("alpha", "2.0.0")
         base = self.commit("publish alpha with its original dependency")
         (self.root / "README.md").write_text("Registry documentation.\n")
         another_base = self.commit("advance main without changing modules")
         manifest.write_text(declaration.replace('name = "beta", version = "1.0.0"',
                                                 'name = "beta", version = "2.0.0"'))
+        removed = self.root / "modules/alpha/2.0.0"
+        shutil.rmtree(removed)
+        metadata = self.root / "modules/alpha/metadata.json"
+        doc = json.loads(metadata.read_text())
+        doc["versions"].remove("2.0.0")
+        write_json(metadata, doc)
         head = self.commit("align alpha with beta 2")
 
-        with mock.patch.multiple(registry_ci, DEPENDENCY_ALIGNMENT_BASE=base,
-                                 DEPENDENCY_ALIGNMENT_TREE=self.git("rev-parse", f"{head}:modules")):
+        with mock.patch.multiple(registry_ci, REGISTRY_COMPACTION_BASE=base,
+                                 REGISTRY_COMPACTION_TREE=self.git("rev-parse", f"{head}:modules")):
             self.assertEqual(self.selected(base, head), {("alpha", "1.0.0")})
             jobs = registry_ci.plan(self.root, None, head, latest_versions=True, published=base, push=True)
             self.assertEqual({(j["module"], j["version"]) for j in jobs["include"]},

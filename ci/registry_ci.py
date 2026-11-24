@@ -54,10 +54,10 @@ RUNNERS = {
 FIPS_CROSS_VERSION = "0.0.6-18a778db501d455f8a1b6d1e3ef8e17121661177"
 FIPS_CROSS_VERSIONS = {FIPS_CROSS_VERSION, "0.0.6-1a8daf8dd8a3ad54de0e91a55b46fd5bbd206763"}
 
-# One approved in-place dependency update. The final Git tree pins every path,
-# byte and file mode under modules/, including the matching overlay checksums.
-DEPENDENCY_ALIGNMENT_BASE = "f2c122b9bb0e98cc42b1228ff0315f8d75a721c2"
-DEPENDENCY_ALIGNMENT_TREE = "868d25546021cb838125a1f6b0eaf39b87d75825"
+# One fast-forward from the full upstream catalog to the reviewed single-version
+# tree. The parent keeps every historical release accessible at its Git revision.
+REGISTRY_COMPACTION_BASE = "672f840ae78d6d53ffaa29fb60ff2f8147051f1e"
+REGISTRY_COMPACTION_TREE = "5b3ddc59e6da4383cc95bb8b7e681ffae4bb82f4"
 
 # The original wrappers stage a private target executable, loader and libraries.
 ARM_DECLARED_RUNTIME_FIXTURES = {
@@ -619,9 +619,10 @@ def check_version_policy(root: Path, published: str, head: str,
     ancestor = published if push else git(root, "merge-base", published, head).strip()
     changed = git(root, "diff", "--name-only", "--no-renames", "-z", ancestor, head, "--", "modules/")
     modules = {PurePosixPath(name).parts[1] for name in changed.split("\0") if name}
-    approved_alignment = (
-        published == DEPENDENCY_ALIGNMENT_BASE
-        and git(root, "rev-parse", f"{head}:modules").strip() == DEPENDENCY_ALIGNMENT_TREE
+    approved_compaction = (
+        published == REGISTRY_COMPACTION_BASE
+        and git(root, "merge-base", published, head).strip() == published
+        and git(root, "rev-parse", f"{head}:modules").strip() == REGISTRY_COMPACTION_TREE
     )
     published_entries = set()
     aligned_entries = set()
@@ -656,11 +657,13 @@ def check_version_policy(root: Path, published: str, head: str,
                 f"{module}: metadata and version directories differ")
         for version, tree in sorted(published_versions.items()):
             published_entries.add((module, version))
+            if approved_compaction and version not in head_versions:
+                continue
             require(version in head_versions,
                     f"{module}@{version}: published version changed or removed; "
                     "retain the version directory (rebase if the maintained branch advanced)")
             if head_versions[version] != tree:
-                if approved_alignment:
+                if approved_compaction:
                     # --latest on push must also cover changed backport releases.
                     aligned_entries.add((module, version))
                 else:
