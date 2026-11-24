@@ -1,9 +1,17 @@
-# Register merged sonic-mgmt-framework sources
+# Native Framework CLI
 
-Source: [securely1g/sonic-mgmt-framework@1ca814b6](https://github.com/securely1g/sonic-mgmt-framework/commit/1ca814b6f0053fb728d40bfa82be69a4d4eca6bf).
+This version pins Framework source `07de59606b0b37a105544284405e86e1a27051bf` and supplies the native
+CLI adaptation from this registry. No Framework source-repository change is required.
 
-This entry uses the latest maintained-branch commit captured on 2026-11-18. It preserves the owner module base `1.0.1` and its dependency declarations. The registry qualifies the version with the full source commit and retains existing compatible consumer tests and registry adaptations.
+The klish source repository is prepared by the existing Infra `prepared_source`
+rule. Native `cc_library`, `cc_shared_library`, and `cc_binary` targets compile
+the original patched source set. Normal builds generate the configuration header
+from the reviewed AMD64/Trixie template and invoke no configure or Make process.
 
-Retain published go_mod consumer integration; the owner keeps its standalone go_work declaration.
+Existing REST, model and CLI asset generators, runtime/debug TAR targets, installed
+paths, SONAMEs, and static library interfaces are preserved. Dependency versions
+match the pinned Framework source and the previously validated native implementation.
 
-Archive integrity, complete patch application, overlay checksums and module identity were checked locally. This preparation does not claim a completed Bazel build or passing CI.
+The independent consumer selects this exact version and reads the Framework Go
+workspace; the fetched module contributes its own `go.mod`, preserving registry
+Go ownership. The presubmit retains the published seven build and ten test targets.
