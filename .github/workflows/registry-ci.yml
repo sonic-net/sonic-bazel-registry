@@ -99,9 +99,9 @@ jobs:
             # Exercise the complete selected catalog without asking to publish it.
             PUBLISHED_SHA="$HEAD_SHA"
           else
-            # Use the maintained repository, including for forks and stacked
-            # PRs. Anonymous public fetch needs no write token or credentials.
-            git fetch --no-tags https://github.com/securely1g/sonic-bazel-registry.git \
+            # On a pull request GITHUB_REPOSITORY is the base repository,
+            # including when the contributor's branch lives in a fork.
+            git fetch --no-tags "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
               +refs/heads/main:refs/registry-ci/published-main
             PUBLISHED_SHA="$(git rev-parse refs/registry-ci/published-main)"
           fi

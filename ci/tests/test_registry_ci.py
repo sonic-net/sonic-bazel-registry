@@ -981,9 +981,17 @@ class VersionPolicyTests(FixtureTestCase):
         self.entry("alpha", "1.0.0")
         published = self.commit("publish alpha")
         self.git("branch", "-M", "main")
+        # Simulate the event repository separately from the contributor checkout.
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        server = Path(temporary.name)
+        upstream = server / "sonic-net" / "registry.git"
+        upstream.parent.mkdir()
+        self.git("clone", "--bare", ".", str(upstream))
         self.git("checkout", "-b", "candidate")
         self.entry("beta", "1.0.0")
         head = self.commit("add beta")
+        self.git("branch", "-f", "main", head)
         workflow = (registry_ci.ROOT / ".github/workflows/registry-ci.yml").read_text()
         shell = workflow.split("          POLICY_FLAGS=()\n", 1)[1].split("          printf 'Event:", 1)[0]
         self.assertIn("ALL_VERSIONS: ${{ inputs.all_versions || inputs.standalone_catalog }}", workflow)
@@ -991,14 +999,14 @@ class VersionPolicyTests(FixtureTestCase):
         for event, standalone, expected in [
             ("workflow_dispatch", "true", head),
             ("workflow_dispatch", "false", published),
+            ("pull_request", "false", published),
             ("pull_request", "true", published),
             ("push", "true", published),
         ]:
             with self.subTest(event=event, standalone=standalone):
                 env = {**os.environ, "EVENT_NAME": event, "HEAD_SHA": head, "BEFORE_SHA": published,
-                       "STANDALONE_CATALOG": standalone, "GIT_CONFIG_COUNT": "1",
-                       "GIT_CONFIG_KEY_0": f"url.{self.root.as_uri()}.insteadOf",
-                       "GIT_CONFIG_VALUE_0": "https://github.com/securely1g/sonic-bazel-registry.git"}
+                       "STANDALONE_CATALOG": standalone, "GITHUB_SERVER_URL": server.as_uri(),
+                       "GITHUB_REPOSITORY": "sonic-net/registry", "GIT_ALLOW_PROTOCOL": "file"}
                 result = subprocess.run(["bash", "-euc", shell + '\nprintf "%s" "$PUBLISHED_SHA"'],
                                         cwd=self.root, env=env, text=True, capture_output=True, check=True)
                 self.assertEqual(result.stdout, expected)

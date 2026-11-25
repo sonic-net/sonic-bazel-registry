@@ -381,11 +381,13 @@ After `.sonic.3` reaches `main`, preserving its consumer inputs and adding
 `.sonic.4` passes. Updating `.sonic.3`'s standalone tests instead uses its existing
 version. Unchanged historical releases do not require new CI manifests.
 
-For PRs and manual runs, the workflow explicitly fetches the public maintained
-repository's `main` and records its SHA in `plan.log`. It does not trust a fork's
-branch or treat a stacked PR base as publication. For pushes to `main`, the
-publication baseline is the event's **pre-push** `before` SHA; using current
-`main` would compare the push against itself. Pushes also pass `--push` to
+For PRs and ordinary manual runs, the workflow fetches `main` from the
+repository receiving the event and records its SHA in `plan.log`. A PR from a
+fork uses the target repository's `main`, including for stacked PRs. An explicit
+standalone catalog dispatch uses the selected head to test the snapshot.
+For pushes to `main`, the publication baseline is the event's **pre-push**
+`before` SHA. Using current `main` would compare the push against itself.
+Pushes also pass `--push` to
 compare directly against that baseline, detecting non-fast-forward rollbacks
 that remove published entries. Missing or unavailable baselines
 fail planning, including in `--latest` and `--all` modes.
