@@ -229,8 +229,8 @@ cc_binary(
         "libtac/include",
     ]),
     deps = [
-        ":libtac",
         ":libtacsupport",
+        ":libtac",
         ":private_headers",
     ],
 )

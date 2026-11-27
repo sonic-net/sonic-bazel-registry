@@ -9,7 +9,7 @@
     "config.h.tpl": "sha256-281E/+oKXlITIkihKuDjOAFFGB5jsqHi8TV0zrz2VCQ=",
     "header_aliases.bzl": "sha256-oJmJfJQKQbzGMNGg9cOzSApu2lbxR8wyM5GzYKyRlYM=",
     "installation_test.py": "sha256-GP3ua1CDKsyvzZFBGMcAFzwI7GQOUhtGu83RmEB8rAE=",
-    "source.BUILD.bazel": "sha256-Uy0j6yTyvmQoYCc3p8+Yx2vA7zs0m6mK+BzzUz1d+gw=",
+    "source.BUILD.bazel": "sha256-3JHo61Vx4U4ioXoGJ065GWsuAZm/VA4IUJXlzZaXBeM=",
     "source_includes.bzl": "sha256-CMCq5bUaY7af3TNyWs9hhrGT7oWO0XaBLlYWwoM3XM4=",
     "tests/BUILD.bazel": "sha256-q5GOHFw6VoDWrkyX0R7LporMhnxFDORNfh9gX4DerYs=",
     "tests/consumer.c": "sha256-gIAXZ+Jp5oSYWnpQXm1xAYfHnD62FHjZ6+X2hZ28zGU="
