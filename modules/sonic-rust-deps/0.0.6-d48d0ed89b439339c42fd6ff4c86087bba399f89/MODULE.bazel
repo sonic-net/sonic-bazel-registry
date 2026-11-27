@@ -1,6 +1,6 @@
 module(
     name = "sonic-rust-deps",
-    version = "0.0.6-74f04c81f6caf01bb48fe5fb6bc48371f065fa20",
+    version = "0.0.6-d48d0ed89b439339c42fd6ff4c86087bba399f89",
     bazel_compatibility = [
         ">=8.5.1",
         "<=8.5.1",
