@@ -47,6 +47,16 @@ assert _GITHUB_SPEC is not None and _GITHUB_SPEC.loader is not None
 github_sources = importlib.util.module_from_spec(_GITHUB_SPEC)
 _GITHUB_SPEC.loader.exec_module(github_sources)
 P4_MODULES = {"p4c", "p4lang-bmv2", "sonic-dash", "sonic-pins"}
+# Module and target pairs that exhaust memory on the standard 6 GiB runner.
+LARGE_RUNNER_TARGETS = {
+    ("sonic-build-infra", "arm64"),
+    ("sonic-dash-ha", "amd64"),
+    ("sonic-linux-kernel", "arm64"),
+    ("sonic-sairedis", "arm64"),
+    ("sonic-swss", "amd64"),
+    ("sonic-swss", "arm64"),
+    ("sonic-swss-common", "arm64"),
+}
 RUNNERS = {
     "amd64": ["self-hosted", "Linux", "X64", "debian-trixie-container"],
     "arm64": ["ubuntu-24.04-arm"],
@@ -84,6 +94,12 @@ ROOT_LABEL = re.compile(r"//[A-Za-z0-9_./+-]*:[A-Za-z0-9_./+-]+\Z")
 
 class RegistryError(ValueError):
     """A registry entry or required validation result is invalid."""
+
+
+class CommandFailure(RegistryError):
+    def __init__(self, returncode: int, log: Path):
+        super().__init__(f"Command failed with status {returncode}; see {log}")
+        self.returncode = returncode
 
 
 def require(condition: bool, message: str) -> None:
@@ -683,10 +699,12 @@ def check_version_policy(root: Path, published: str, head: str,
     return published_entries, aligned_entries
 
 
-def module_runner(module: str, execution_architecture: str, p4_runner_profile: str) -> list[str]:
+def module_runner(module: str, execution_architecture: str, p4_runner_profile: str, *,
+                  target_architecture: str | None = None) -> list[str]:
     """Choose capacity after the target's native/cross route has been determined."""
     # Compiling the collector's DataDog API client exceeds the standard 6 GiB slot.
-    large = module == "otelcol-contrib" or (module in P4_MODULES and p4_runner_profile == "large")
+    large = (module == "otelcol-contrib" or (module, target_architecture) in LARGE_RUNNER_TARGETS
+             or (module in P4_MODULES and p4_runner_profile == "large"))
     if large and execution_architecture == "amd64":
         return ["self-hosted", "Linux", "X64", "debian-trixie-container-large"]
     return RUNNERS[execution_architecture]
@@ -826,7 +844,7 @@ def plan(root: Path, base: str | None, head: str | None, all_versions: bool = Fa
         for architecture in config["architectures"]:
             include.append({"module": module, "version": version, "architecture": architecture,
                             "execution_architecture": "amd64", "cross_compile": architecture == "arm64",
-                            "runner": module_runner(module, "amd64", p4_runner_profile)})
+                            "runner": module_runner(module, "amd64", p4_runner_profile, target_architecture=architecture)})
     return {"include": include}
 
 
@@ -1253,7 +1271,35 @@ def run_logged(command: list[str], cwd: Path, log: Path) -> None:
         result = subprocess.run(command, cwd=cwd, stdout=output, stderr=subprocess.STDOUT)
     if result.returncode:
         print(read_log_tail(log, 16000), file=sys.stderr)
-        raise RegistryError(f"Command failed with status {result.returncode}; see {log}")
+        raise CommandFailure(result.returncode, log)
+
+
+def run_bazel_phase(prefix: list[str], phase: str, flags: list[str], args: list[str],
+                    consumer: Path, artifacts: Path) -> list[str]:
+    """Keep the shared cache optional for ordinary runner builds and tests."""
+    log = artifacts / (phase + ".log")
+    try:
+        run_logged([*prefix, phase, *flags, *args], consumer, log)
+        return flags
+    except CommandFailure as error:
+        # Bazel 8.5.1 exits 2 during cache initialization or 36 during an
+        # action when this helper times out, even with remote_local_fallback.
+        explicit_remote = {"--remote_cache", "--remote_executor", "--experimental_remote_downloader"}
+        if error.returncode not in (2, 36) or any(
+                option.partition("=")[0] in explicit_remote for option in [*flags, *args]):
+            raise
+        timeout = re.compile(r"^ERROR: (?:.*Exec failed due to CredentialHelperException: )?"
+                             r"Failed to get credentials for '[^']+' from helper "
+                             r"'/opt/sonic-runner/cache_credentials\.py': process timed out\s*$")
+        with log.open(errors="replace") as diagnostics:
+            if not any(timeout.match(line) for line in diagnostics):
+                raise
+    log.rename(artifacts / (phase + "-cache-timeout.log"))
+    print(f"Runner cache credentials timed out. Retrying Bazel {phase} with the remote action cache disabled.",
+          flush=True)
+    local_flags = [*flags, "--remote_cache="]
+    run_logged([*prefix, phase, *local_flags, *args], consumer, log)
+    return local_flags
 
 
 
@@ -1875,9 +1921,10 @@ def cross_test_timeout_flags(module: str, version: str, cross_compile: bool, fla
     """Supply emulation budgets for short, moderate, long and eternal tests."""
     if not cross_compile or any(flag == "--test_timeout" or flag.startswith("--test_timeout=") for flag in flags):
         return []
-    # BMv2 inspects runtime/debug archives and Sairedis runs two sequential
-    # saiasiccmp comparisons under QEMU; both exceed the 900-second budget.
-    moderate_seconds = 2700 if module in {"p4lang-bmv2", "sonic-sairedis"} else 900
+    # Runtime tools, package checks and comparisons in these suites can take
+    # more than 900 seconds when executed through QEMU.
+    longer_moderate = {"p4lang-bmv2", "sonic-build-infra", "sonic-sairedis", "sonic-swss-common"}
+    moderate_seconds = 2700 if module in longer_moderate else 900
     # The FIPS package test runs the complete SymCrypt unittest under QEMU.
     long_seconds = 5400 if (module == "sonic-fips" and version in FIPS_CROSS_VERSIONS) else 2700
     return [f"--test_timeout=180,{moderate_seconds},{long_seconds},7200"]
@@ -2072,9 +2119,9 @@ def run(root: Path, module: str, version: str, architecture: str,
                                     list(dict.fromkeys(build_targets + test_targets)), consumer, artifacts)
             with build_cache_audit(config.get("cache_audit_targets", []), work_dir, artifacts) as audit_flags:
                 profile_flags = analysis_profile_flags(artifacts, "build") if profile_analysis else []
-                run_logged([*prefix, "build", *flags, *audit_flags, *profile_flags,
-                            f"--build_event_json_file={artifacts / 'build-events.jsonl'}", *build_targets],
-                           consumer, artifacts / "build.log")
+                flags = run_bazel_phase(prefix, "build", flags, [
+                    *audit_flags, *profile_flags, f"--build_event_json_file={artifacts / 'build-events.jsonl'}",
+                    *build_targets], consumer, artifacts)
             declared_trees = query_output_trees(prefix, flags, build_targets, consumer, artifacts)
             # Path queries need dependency resolution, but not target/host platform
             # flags whose apparent labels may be unresolved in a fresh info command.
@@ -2171,11 +2218,11 @@ def run(root: Path, module: str, version: str, architecture: str,
             # separate bind mounts reject those links even on one filesystem.
             # Keep input staging within the disposable container, and leave
             # build action strategies unchanged.
-            run_logged([*prefix, "test", *flags, *test_flags, *(analysis_profile_flags(artifacts, "test") if profile_analysis else []), "--test_env=HOME=",
-                        f"--strategy=TestRunner={TEST_SANDBOX_STRATEGY}",
-                        "--nocache_test_results", "--test_output=errors",
-                        f"--build_event_json_file={artifacts / 'test-events.jsonl'}", *test_targets],
-                       consumer, artifacts / "test.log")
+            run_bazel_phase(prefix, "test", flags, [
+                *test_flags, *(analysis_profile_flags(artifacts, "test") if profile_analysis else []),
+                "--test_env=HOME=", f"--strategy=TestRunner={TEST_SANDBOX_STRATEGY}",
+                "--nocache_test_results", "--test_output=errors",
+                f"--build_event_json_file={artifacts / 'test-events.jsonl'}", *test_targets], consumer, artifacts)
             verify_tests(artifacts / "test-events.jsonl", test_targets)
             for dependency in config["consumer_deps"]:
                 name, selected_version = dependency["name"], dependency["version"]

@@ -39,6 +39,60 @@ def digest(data: bytes) -> str:
     return "sha256-" + base64.b64encode(hashlib.sha256(data).digest()).decode()
 
 
+class RemoteCacheTimeoutTests(unittest.TestCase):
+    timeout = ("Failed to get credentials for 'https://cache.example.invalid' from helper "
+               "'/opt/sonic-runner/cache_credentials.py': process timed out")
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+
+    def phase(self, results, flags=(), phase="build"):
+        responses = iter(results)
+        self.commands = []
+
+        def execute(command, *, cwd, stdout, stderr):
+            self.commands.append(command)
+            status, message = next(responses)
+            stdout.write(message + "\n")
+            return subprocess.CompletedProcess(command, status)
+
+        with mock.patch.object(registry_ci.subprocess, "run", side_effect=execute):
+            return registry_ci.run_bazel_phase(["bazel"], phase, list(flags), ["//:consumer"],
+                                               self.root, self.root)
+
+    def test_retry_same_target_without_remote_action_cache_and_keep_diagnostics(self):
+        for phase, status, prefix in (("build", 36, "ERROR: action failed: Exec failed due to CredentialHelperException: "),
+                                      ("test", 2, "ERROR: ")):
+            with self.subTest(phase=phase):
+                diagnostic = prefix + self.timeout
+                flags = self.phase([(status, diagnostic), (0, "passed")], ["--jobs=2"], phase)
+                self.assertEqual(flags, ["--jobs=2", "--remote_cache="])
+                self.assertEqual(self.commands, [["bazel", phase, "--jobs=2", "//:consumer"],
+                                                 ["bazel", phase, *flags, "//:consumer"]])
+                self.assertEqual((self.root / (phase + "-cache-timeout.log")).read_text(), diagnostic + "\n")
+                self.assertEqual((self.root / (phase + ".log")).read_text(), "passed\n")
+
+    def test_other_failures_and_explicit_remote_checks_still_fail(self):
+        cases = [(3, "ERROR: " + self.timeout, []), (36, "ERROR: compiler failed", []),
+                 (36, "ERROR: " + self.timeout.replace("cache_credentials", "source_credentials"), [])]
+        for option in ("--remote_cache=", "--remote_cache=https://cache.example.invalid",
+                       "--remote_executor=grpc://executor", "--experimental_remote_downloader=grpc://probe"):
+            cases.append((2, "ERROR: " + self.timeout, [option]))
+        for status, message, flags in cases:
+            with self.subTest(status=status, message=message, flags=flags):
+                with self.assertRaises(registry_ci.CommandFailure):
+                    self.phase([(status, message)], flags)
+                self.assertEqual(len(self.commands), 1)
+
+    def test_retry_failure_propagates(self):
+        with self.assertRaises(registry_ci.CommandFailure) as result:
+            self.phase([(2, "ERROR: " + self.timeout), (1, "ERROR: target failed")])
+        self.assertEqual(result.exception.returncode, 1)
+        self.assertEqual(len(self.commands), 2)
+
+
 class FixtureTestCase(unittest.TestCase):
     def setUp(self) -> None:
         temporary = tempfile.TemporaryDirectory()
@@ -2275,6 +2329,37 @@ class Arm64RoutingTests(FixtureTestCase):
                 self.assertEqual(registry_ci.module_runner("otelcol-contrib", "arm64", profile),
                                  registry_ci.RUNNERS["arm64"])
 
+    def test_large_capacity_follows_target_independently_of_p4(self):
+        expected = {
+            "sonic-build-infra": {"arm64"},
+            "sonic-dash-ha": {"amd64"},
+            "sonic-linux-kernel": {"arm64"},
+            "sonic-sairedis": {"arm64"},
+            "sonic-swss": {"amd64", "arm64"},
+            "sonic-swss-common": {"arm64"},
+        }
+        for module in expected:
+            self.arm_entry(module, "1.0.0")
+        head = self.commit("register both targets")
+        for profile in ("standard", "large"):
+            rows = registry_ci.plan(self.root, None, head, all_versions=True, published=head,
+                                    p4_runner_profile=profile)["include"]
+            self.assertEqual(len(rows), 2 * len(expected))
+            for row in rows:
+                use_large = row["architecture"] in expected[row["module"]]
+                label = "debian-trixie-container-large" if use_large else "debian-trixie-container"
+                self.assertEqual(row["runner"], ["self-hosted", "Linux", "X64", label], row)
+
+    def test_infra_and_swss_common_cross_tests_get_a_longer_moderate_timeout(self):
+        for module in ("sonic-build-infra", "sonic-swss-common"):
+            for cross, flags, expected in (
+                (True, [], ["--test_timeout=180,2700,2700,7200"]),
+                (False, [], []),
+                (True, ["--test_timeout=42"], []),
+            ):
+                with self.subTest(module=module, cross=cross, flags=flags):
+                    self.assertEqual(registry_ci.cross_test_timeout_flags(module, "1.0.0", cross, flags), expected)
+
     def test_bmv2_cross_package_inspection_gets_a_longer_moderate_timeout(self):
         for module, cross, flags, expected in (
             ("p4lang-bmv2", True, [], ["--test_timeout=180,2700,2700,7200"]),
@@ -2311,9 +2396,10 @@ class WorkflowMatrixTests(unittest.TestCase):
     def setUp(self):
         self.workflow = (registry_ci.ROOT / ".github/workflows/registry-ci.yml").read_text()
 
-    def test_plan_preserves_native_amd64_and_cross_arm64_and_rejects_other_routes(self):
         script = self.workflow.split("          python3 - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
-        script = "\n".join(line[10:] for line in script.splitlines())
+        self.validate_matrix = "\n".join(line[10:] for line in script.splitlines())
+
+    def test_plan_preserves_native_amd64_and_cross_arm64_and_rejects_other_routes(self):
         amd = {"module": "alpha", "version": "1.0.0", "architecture": "amd64",
                "execution_architecture": "amd64", "cross_compile": False,
                "runner": registry_ci.RUNNERS["amd64"]}
@@ -2322,7 +2408,12 @@ class WorkflowMatrixTests(unittest.TestCase):
         large = {**amd, "module": "sonic-dash", "runner": ["self-hosted", "Linux", "X64", "debian-trixie-container-large"]}
         pins_large = {**amd, "module": "sonic-pins", "runner": ["self-hosted", "Linux", "X64", "debian-trixie-container-large"]}
         cross = {**second_amd, "architecture": "arm64", "cross_compile": True}
+        infra_amd = {**amd, "module": "sonic-build-infra"}
+        infra_arm = {**cross, "module": "sonic-build-infra", "runner": large["runner"]}
         cases = [([], True), ([amd], True), ([arm], False),
+                               ([infra_amd, infra_arm], True),
+                               ([{**infra_amd, "runner": large["runner"]}], False),
+                               ([{**infra_arm, "runner": amd["runner"]}], False),
                                ([amd, second_amd, cross, large, pins_large], True), ([cross], True),
                                ([{**large, "module": "beta"}], False), ([{**amd, "module": "sonic-dash"}], False),
                                ([{**amd, "module": "sonic-pins"}], False),
@@ -2339,7 +2430,7 @@ class WorkflowMatrixTests(unittest.TestCase):
                 matrix = {"include": jobs}
                 (root / "plan.json").write_text(json.dumps(matrix))
                 output = root / "outputs"
-                result = subprocess.run([sys.executable, "-I", "-S", "-c", script], cwd=root,
+                result = subprocess.run([sys.executable, "-I", "-S", "-c", self.validate_matrix], cwd=root,
                     env={**os.environ, "EVENT_NAME": "workflow_dispatch", "GITHUB_OUTPUT": str(output),
                          "P4_RUNNER_PROFILE": "large", "GITHUB_WORKSPACE": str(registry_ci.ROOT)},
                     text=True, capture_output=True)
@@ -2354,6 +2445,28 @@ class WorkflowMatrixTests(unittest.TestCase):
                 self.assertEqual(json.loads(values["overflow_matrix"])["include"], jobs[256:])
                 self.assertEqual(values["has_overflow_jobs"], str(len(jobs) > 256).lower())
                 self.assertEqual(values["has_jobs"], str(bool(jobs)).lower())
+
+    def test_matrix_validates_the_runner_selected_by_an_older_pr_head(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "ci").mkdir()
+            (root / "ci/registry_ci.py").write_text(
+                "def module_runner(module, execution_architecture, p4_runner_profile):\n"
+                "    return ['self-hosted', 'Linux', 'X64', 'debian-trixie-container']\n")
+            row = {"module": "sonic-build-infra", "version": "1.0.0", "architecture": "arm64",
+                   "execution_architecture": "amd64", "cross_compile": True}
+            for label, allowed in (("debian-trixie-container", True), ("debian-trixie-container-large", False)):
+                row["runner"] = ["self-hosted", "Linux", "X64", label]
+                (root / "plan.json").write_text(json.dumps({"include": [row]}))
+                with self.subTest(label=label):
+                    result = subprocess.run([sys.executable, "-I", "-S", "-c", self.validate_matrix], cwd=root,
+                        env={**os.environ, "GITHUB_WORKSPACE": str(root), "P4_RUNNER_PROFILE": "large",
+                             "GITHUB_OUTPUT": str(root / "outputs")}, text=True, capture_output=True)
+                    if allowed:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn("Unsupported execution route", result.stderr)
 
     def test_all_module_jobs_share_one_local_budget_and_validation_body(self):
         block = self.workflow.split("  modules_local:\n", 1)[1].split("  modules_overflow:\n", 1)[0]

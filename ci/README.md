@@ -847,7 +847,14 @@ validation use `self-hosted`, `Linux`, `X64`, and `debian-trixie-container`.
 P4C (`p4c`), BMv2 (`p4lang-bmv2`), DASH (`sonic-dash`), and PINS (`sonic-pins`) use
 `debian-trixie-container-large` by default whenever their execution architecture
 is AMD64. This includes ARM64 cross-builds and the P4C host tool built inside
-DASH. Both Trixie pools use the same source mirrors, private-mirror trust checks,
+DASH. These module checks use the large pool with either P4 profile:
+
+| Target | Modules |
+| --- | --- |
+| AMD64 | `otelcol-contrib`, `sonic-dash-ha`, `sonic-swss` |
+| ARM64 cross-build on AMD64 | `sonic-build-infra`, `sonic-linux-kernel`, `sonic-sairedis`, `sonic-swss`, `sonic-swss-common` |
+
+Both Trixie pools use the same source mirrors, private-mirror trust checks,
 HTTP audit, and package tools.
 
 The large pool on `lgh108` provides four concurrent jobs, each limited to 8
@@ -901,6 +908,14 @@ Every module validation, including native ARM64, runs through
 `ci/runner_resources.py`. The wrapper records the tightest enclosing cgroup v2
 CPU quota and memory limit, plus process CPU affinity, in
 `runner-resources.json`.
+
+If the runner's default remote action-cache credential helper times out during
+a Bazel build or test, CI saves the first diagnostic in
+`build-cache-timeout.log` or `test-cache-timeout.log` and retries that phase
+once with the remote action cache disabled. Subsequent tests use that setting
+if the build needed the retry. Explicit cache, remote execution and downloader
+checks keep their selected endpoint. Ordinary build and test failures still
+fail validation.
 
 The resource wrapper sets the action memory budget to 80% of the effective memory
 remaining after the 2 GiB JVM heap reserve. Effective memory is the smaller
@@ -1210,9 +1225,10 @@ explicit configure aliases, native compiler actions and caller-provided
 `CONFIG_SITE`; it invents no cached target-probe answers. The effective site and
 hash are retained. Source-owned runtime preparation executes through the guest
 wrapper, preserving its locked inputs and checking an ARM receipt. Cross tests
-default to 180/900/2700/7200 seconds for Bazel's four timeout classes. BMv2 gets
-2,700 seconds for moderate tests so its package test can unpack and inspect the
-runtime and debug archives under emulation. The FIPS
+default to 180/900/2700/7200 seconds for Bazel's four timeout classes. BMv2,
+Sairedis, build-infra and SWSS Common get 2,700 seconds for moderate tests.
+These suites exercise archives, runtime tools or service integration under
+emulation. The FIPS
 0.0.6 ARM cross job allows 5,400 seconds for long tests and four hours for the
 job, which runs the OpenSSL vendor suite and the SymCrypt unittest. Explicit
 caller timeouts take precedence. All original build
